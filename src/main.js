@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
+const CryptoJS = require('crypto-js');
 const { createCanvas, loadImage } = require('canvas');
 const { performance } = require('perf_hooks');
 const settings = require('./settings.js');
@@ -10,7 +11,6 @@ const config = {
 	details: {
 		name: '',
 		description: '',
-		tags: [],
 		...settings.details,
 	},
 	image: {
@@ -18,25 +18,19 @@ const config = {
 		height: 1024,
 		...settings.image,
 	},
-	uri: {
-		image: (name) => `uri://hash/${name}.png`,
-		metadata: (name) => `uri://hash/${name}`,
-		...settings.uri,
-	},
 	layers: settings.layers || [],
 	injectDna: settings.injectDna || [],
 	build: {
-		threshold: 1000000000,
+		threshold: 100000000,
 		clean: true,
 		path: (name = '') => path.resolve(__dirname, `../build/${name}`),
 		image: (name) => config.build.path(`images/${name}.png`),
-		metadata: (name) => config.build.path(`metadata/${name}`),
 		manifest: () => config.build.path(`manifest.json`),
 		optimized: (name, size) => config.build.path(`optimized/${size}x${size}/${name}.png`),
 		optimize: [
 			600,
-			200,
-			100,
+			256,
+			128,
 		],
 		...settings.build,
 	},
@@ -69,7 +63,7 @@ function ensureFolderStructure() {
 
 	if (config.build.clean) {
 		if (fs.existsSync(buildDir)) {
-			fs.rmdirSync(buildDir, { recursive: true });
+			fs.rmSync(buildDir, { recursive: true });
 		}
 	}
 
@@ -79,10 +73,6 @@ function ensureFolderStructure() {
 
 	if (!fs.existsSync(`${buildDir}/images`)) {
 		fs.mkdirSync(`${buildDir}/images`);
-	}
-
-	if (!fs.existsSync(`${buildDir}/metadata`)) {
-		fs.mkdirSync(`${buildDir}/metadata`);
 	}
 
 	if (!fs.existsSync(`${buildDir}/optimized`)) {
@@ -209,10 +199,7 @@ async function optimizeImages(manifest) {
 
 async function compile() {
 	const total = config.total;
-
 	let failed = 0;
-	const failureThreshold = config.build.threshold;
-
 	const collection = new Set();
 	const metadatas = [];
 
@@ -227,46 +214,56 @@ async function compile() {
 		if (collection.has(sequence)) {
 			failed++;
 
-			if (failed >= failureThreshold) {
+			if (failed >= config.build.threshold) {
 				return metadatas;
 			}
 
 			continue;
 		}
 
+		failed = 0;
+
 		collection.add(sequence);
 
+		const bytes = await renderImage(paths);
+
+		fs.writeFileSync(config.build.image(tokenId), bytes);
+
+		const hash = CryptoJS.SHA256(CryptoJS.enc.Hex.parse(bytes.toString('hex'))).toString();
+
 		const metadata = {
-			image: config.uri.image(tokenId),
+			name: `${config.details.name} #${tokenId}`,
+			description: config.details.description,
 			tokenId,
-			name: `${config.details.name} - ${config.details.description} - ${tokenId}`,
+			hash,
 			attributes,
 		};
 
 		metadatas.push(metadata);
 
-		fs.writeFileSync(config.build.metadata(tokenId), JSON.stringify(metadata, null, 2));
-
-		const bytes = await renderImage(paths);
-		fs.writeFileSync(config.build.image(tokenId), bytes);
-
-		console.log(`[+] Generated ${padLeft(tokenId+1, String(total).length)}/${total} | ${padLeft(tokenId, String(total).length)} : [dna: ${sequence}]`);
+		console.log(`[+] Generated ${padLeft(tokenId+1, String(total).length)}/${total} | ${padLeft(tokenId, String(total).length)} : [dna: ${sequence}] | ${hash}`);
 	}
 
 	return metadatas;
 }
 
 async function main() {
-	console.log(`Generative Art Compiler [v1.0.0]`);
+	console.log(`Generative Art Compiler [v1.0.1]`);
 	console.log('---------------------------------');
 
 	const startTime = performance.now();
+
+	const totalPossibilities = config.layers.map(l => l.variations.length).reduce((a, c) => { a *= c; return a; }, 1);
+	if (config.total > totalPossibilities) {
+		throw new Error(`[!] The total number of tokens to generate [${config.total}] is higher than the total possibilities [${totalPossibilities}] your layers support`);
+	}
 
 	ensureFolderStructure();
 
 	const manifest = {
 		...config.details,
 		total: config.total,
+		provenanceHash: '',
 		metadata: [],
 	};
 
@@ -277,6 +274,10 @@ async function main() {
 		...metadatas,
 	];
 
+	const merged = manifest.metadata.map(m => m.hash).join('');
+
+	manifest.provenanceHash = CryptoJS.SHA256(merged).toString();
+
 	fs.writeFileSync(config.build.manifest(), JSON.stringify(manifest, null, 2));
 
 	await optimizeImages(manifest);
@@ -285,7 +286,11 @@ async function main() {
 
 	console.log('---------------------------------');
 	console.log(`Compiled ${metadatas.length} unique images in ${endTime}s`);
+	console.log(`Provenance Hash: ${manifest.provenanceHash}`);
 	console.log(`Find your images at ${config.build.path()}`);
 }
 
-main();
+main().catch(err => {
+	console.error(err);
+	process.exit(1);
+});

@@ -1,6 +1,6 @@
 {
   "name": "generative",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "PolishedNFT",
   "license": "MIT",
   "description": "Generative Art Compiler",
@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "canvas": "2.9.0",
+    "crypto-js": "4.1.1",
     "sharp": "0.30.1"
   }
 }

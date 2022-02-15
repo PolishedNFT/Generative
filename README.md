@@ -25,7 +25,7 @@ module.exports = {
 		metadata: (name) => `uri://hash/${name}`, // uri of where the metadata file will be stored (usally ipfs)
 	},
 	layers: [
-    	{
+		{
 			order: 1, // higher order numbers have their images placed above the lower orders
 			trait: 'Shape', // name of the trait
 			variations: [
