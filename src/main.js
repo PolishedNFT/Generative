@@ -23,10 +23,7 @@ const config = {
 	build: {
 		threshold: 100000000,
 		clean: true,
-		path: (name = '') => path.resolve(__dirname, `../build/${name}`),
-		image: (name) => config.build.path(`images/${name}.png`),
-		manifest: () => config.build.path(`manifest.json`),
-		optimized: (name, size) => config.build.path(`optimized/${size}x${size}/${name}.png`),
+		path: '',
 		optimize: [
 			600,
 			256,
@@ -59,7 +56,7 @@ function padLeft(num, digits) {
 }
 
 function ensureFolderStructure() {
-	const buildDir = config.build.path();
+	const buildDir = config.build.path;
 
 	if (config.build.clean) {
 		if (fs.existsSync(buildDir)) {
@@ -159,7 +156,7 @@ function generateDna(layers) {
 
 async function renderImage(paths) {
 	const canvas = createCanvas(config.image.width, config.image.height);
-	const ctx = canvas.getContext("2d");
+	const ctx = canvas.getContext('2d');
 
 	ctx.clearRect(0, 0, config.image.width, config.image.height);
 	ctx.imageSmoothingEnabled = false;
@@ -184,13 +181,13 @@ async function optimizeImages(manifest) {
 		const size = config.build.optimize[i];
 
 		await Promise.all(manifest.metadata.map(({ tokenId }) => {
-			return sharp(config.build.image(tokenId))
+			return sharp(`${config.build.path}/images/${tokenId}.png`)
 				.resize({
 					width: size,
 					height: size,
 					kernel: 'nearest',
 				})
-				.toFile(config.build.optimized(tokenId, size));
+				.toFile(`${config.build.path}/optimized/${size}x${size}/${tokenId}.png`);
 		})).then(() => {
 			console.log(`[+] Optimized for ${size}x${size}`);
 		});
@@ -227,7 +224,7 @@ async function compile() {
 
 		const bytes = await renderImage(paths);
 
-		fs.writeFileSync(config.build.image(tokenId), bytes);
+		fs.writeFileSync(`${config.build.path}/images/${tokenId}.png`, bytes);
 
 		const hash = CryptoJS.SHA256(CryptoJS.enc.Hex.parse(bytes.toString('hex'))).toString();
 
@@ -241,7 +238,7 @@ async function compile() {
 
 		metadatas.push(metadata);
 
-		console.log(`[+] Generated ${padLeft(tokenId+1, String(total).length)}/${total} | ${padLeft(tokenId, String(total).length)} : [dna: ${sequence}] | ${hash}`);
+		console.log(`[+] Generated ${padLeft(tokenId + 1, String(total).length)}/${total} | ${padLeft(tokenId, String(total).length)} : [dna: ${sequence}] | ${hash}`);
 	}
 
 	return metadatas;
@@ -252,6 +249,14 @@ async function main() {
 	console.log('---------------------------------');
 
 	const startTime = performance.now();
+
+	if (process.argv.length !== 3) {
+		console.log('[!] Missing build path');
+		console.log('[?] Usage: npm run start /path/to/build/output/');
+		return;
+	}
+
+	config.build.path = process.argv[2];
 
 	const totalPossibilities = config.layers.map(l => l.variations.length).reduce((a, c) => { a *= c; return a; }, 1);
 	if (config.total > totalPossibilities) {
@@ -278,7 +283,7 @@ async function main() {
 
 	manifest.provenanceHash = CryptoJS.SHA256(merged).toString();
 
-	fs.writeFileSync(config.build.manifest(), JSON.stringify(manifest, null, 2));
+	fs.writeFileSync(`${config.build.path}/manifest.json`, JSON.stringify(manifest, null, 2));
 
 	await optimizeImages(manifest);
 
@@ -287,7 +292,7 @@ async function main() {
 	console.log('---------------------------------');
 	console.log(`Compiled ${metadatas.length} unique images in ${endTime}s`);
 	console.log(`Provenance Hash: ${manifest.provenanceHash}`);
-	console.log(`Find your images at ${config.build.path()}`);
+	console.log(`Find your images at ${config.build.path}`);
 }
 
 main().catch(err => {
