@@ -5,6 +5,8 @@
 ## Create unique generative art using simple layers of transparent images
 This tool will take layers of transparent images and merge them together to create a single image, each layer can have variations that are then choosen using a weighted random selection algorithm which generates a unique dna sequence for each image. These sequences are recorded and checked when generating the new images to ensure each image is always unique. Each variation has a weight assigned that helps to estimate the chance it has to be choosen. This results is a lot of unique images with some having more `rarity` than others because of the weighted variations.
 
+`npm run start -- ../build/`
+
 ### Quick Start
 The only file you need to edit is `settings.js`, each setting is explained below.
 
