@@ -25,9 +25,12 @@ const config = {
 		clean: true,
 		path: '',
 		optimize: [
-			600,
+			8192,
+			4096,
+			2048,
+			1024,
+			512,
 			256,
-			128,
 		],
 		...settings.build,
 	},
@@ -159,7 +162,7 @@ async function renderImage(paths) {
 	const ctx = canvas.getContext('2d');
 
 	ctx.clearRect(0, 0, config.image.width, config.image.height);
-	ctx.imageSmoothingEnabled = false;
+	ctx.imageSmoothingEnabled = true;
 
 	for (const order in Object.keys(paths)) {
 		const image = await loadImage(paths[order]);
@@ -245,7 +248,7 @@ async function compile() {
 }
 
 async function main() {
-	console.log(`Generative Art Compiler [v1.0.1]`);
+	console.log(`Generative Art Compiler [v1.0.0]`);
 	console.log('---------------------------------');
 
 	const startTime = performance.now();
